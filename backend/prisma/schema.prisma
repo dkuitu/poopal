@@ -1,0 +1,406 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// Users & Authentication
+// ============================================
+
+model User {
+  id                    String   @id @default(uuid())
+  email                 String   @unique
+  username              String?  @unique
+  passwordHash          String   @map("password_hash")
+  avatarUrl             String?  @map("avatar_url")
+  onboardingCompleted   Boolean  @default(false) @map("onboarding_completed")
+  themePreference       ThemePreference @default(AUTO) @map("theme_preference")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+  deletedAt             DateTime? @map("deleted_at")
+
+  // Relations
+  stoolLogs             StoolLog[]
+  mealLogs              MealLog[]
+  symptomLogs           SymptomLog[]
+  lifestyleLogs         LifestyleLog[]
+  triggers              Trigger[]
+  patterns              Pattern[]
+  groupsCreated         Group[]  @relation("GroupCreator")
+  groupMemberships      GroupMember[]
+  userAchievements      UserAchievement[]
+  reports               Report[]
+
+  @@map("users")
+}
+
+enum ThemePreference {
+  LIGHT
+  DARK
+  AUTO
+}
+
+// ============================================
+// Stool Tracking
+// ============================================
+
+model StoolLog {
+  id                    String   @id @default(uuid())
+  userId                String   @map("user_id")
+  bristolType           Int      @map("bristol_type") // 1-7
+  color                 StoolColor?
+  consistency           StoolConsistency?
+  size                  StoolSize?
+  urgency               Int?     // 1-5
+  completeness          Int?     // 1-5
+  bloodPresent          Boolean  @default(false) @map("blood_present")
+  mucusPresent          Boolean  @default(false) @map("mucus_present")
+  undigestedFood        Boolean  @default(false) @map("undigested_food")
+  notes                 String?
+  photoAnalyzed         Boolean  @default(false) @map("photo_analyzed")
+  aiConfidenceScore     Float?   @map("ai_confidence_score")
+  aiAnalysisNotes       String?  @map("ai_analysis_notes")
+  loggedAt              DateTime @map("logged_at")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, loggedAt(sort: Desc)])
+  @@map("stool_logs")
+}
+
+enum StoolColor {
+  BROWN
+  LIGHT_BROWN
+  DARK_BROWN
+  GREEN
+  YELLOW
+  BLACK
+  RED
+  PALE
+}
+
+enum StoolConsistency {
+  HARD
+  FIRM
+  SOFT
+  LIQUID
+  WATERY
+}
+
+enum StoolSize {
+  SMALL
+  MEDIUM
+  LARGE
+}
+
+// ============================================
+// Meal Tracking
+// ============================================
+
+model MealLog {
+  id                    String   @id @default(uuid())
+  userId                String   @map("user_id")
+  mealType              MealType @map("meal_type")
+  description           String?
+  photoUrl              String?  @map("photo_url")
+  ingredients           Json?    // Array of ingredient strings
+  estimatedFiberG       Float?   @map("estimated_fiber_g")
+  estimatedWaterMl      Float?   @map("estimated_water_ml")
+  loggedAt              DateTime @map("logged_at")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, loggedAt(sort: Desc)])
+  @@map("meal_logs")
+}
+
+enum MealType {
+  BREAKFAST
+  LUNCH
+  DINNER
+  SNACK
+}
+
+// ============================================
+// Symptom Tracking
+// ============================================
+
+model SymptomLog {
+  id                    String   @id @default(uuid())
+  userId                String   @map("user_id")
+  symptomType           SymptomType @map("symptom_type")
+  severity              Int      // 1-10
+  durationMinutes       Int?     @map("duration_minutes")
+  notes                 String?
+  loggedAt              DateTime @map("logged_at")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, loggedAt(sort: Desc)])
+  @@map("symptom_logs")
+}
+
+enum SymptomType {
+  BLOATING
+  CRAMPS
+  GAS
+  NAUSEA
+  PAIN
+  HEARTBURN
+  FATIGUE
+  OTHER
+}
+
+// ============================================
+// Lifestyle Tracking
+// ============================================
+
+model LifestyleLog {
+  id                    String   @id @default(uuid())
+  userId                String   @map("user_id")
+  date                  DateTime @db.Date
+  sleepHours            Float?   @map("sleep_hours")
+  sleepQuality          Int?     @map("sleep_quality") // 1-5
+  exerciseMinutes       Int?     @map("exercise_minutes")
+  exerciseType          String?  @map("exercise_type")
+  stressLevel           Int?     @map("stress_level") // 1-5
+  waterIntakeMl         Int?     @map("water_intake_ml")
+  medications           Json?    // Array of medication strings
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@map("lifestyle_logs")
+}
+
+// ============================================
+// Food Database
+// ============================================
+
+model Food {
+  id                    String   @id @default(uuid())
+  name                  String
+  category              FoodCategory
+  commonAllergen        Boolean  @default(false) @map("common_allergen")
+  fiberContent          FiberContent @map("fiber_content")
+  isProbiotic           Boolean  @default(false) @map("is_probiotic")
+  isFermented           Boolean  @default(false) @map("is_fermented")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  // Relations
+  triggers              Trigger[]
+
+  @@map("foods")
+}
+
+enum FoodCategory {
+  DAIRY
+  GLUTEN
+  MEAT
+  POULTRY
+  FISH
+  SEAFOOD
+  VEGETABLE
+  FRUIT
+  GRAIN
+  LEGUME
+  NUT
+  SEED
+  SPICE
+  BEVERAGE
+  PROCESSED
+  OTHER
+}
+
+enum FiberContent {
+  HIGH
+  MEDIUM
+  LOW
+  NONE
+}
+
+// ============================================
+// Triggers & Patterns
+// ============================================
+
+model Trigger {
+  id                    String   @id @default(uuid())
+  userId                String   @map("user_id")
+  foodId                String   @map("food_id")
+  triggerType           TriggerType @map("trigger_type")
+  confidenceScore       Int      @map("confidence_score") // 0-100
+  occurrences           Int      @default(1)
+  lastDetectedAt        DateTime @map("last_detected_at")
+  identifiedAt          DateTime @default(now()) @map("identified_at")
+  userConfirmed         Boolean  @default(false) @map("user_confirmed")
+
+  // Relations
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  food                  Food     @relation(fields: [foodId], references: [id])
+
+  @@index([userId, confidenceScore(sort: Desc)])
+  @@map("triggers")
+}
+
+enum TriggerType {
+  CAUSES_DIARRHEA
+  CAUSES_CONSTIPATION
+  CAUSES_BLOATING
+  CAUSES_PAIN
+  CAUSES_GAS
+}
+
+model Pattern {
+  id                    String   @id @default(uuid())
+  userId                String   @map("user_id")
+  patternType           PatternType @map("pattern_type")
+  description           String
+  exampleDates          Json     @map("example_dates") // Array of date strings
+  confidenceScore       Int      @map("confidence_score") // 0-100
+  detectedAt            DateTime @default(now()) @map("detected_at")
+  userAcknowledged      Boolean  @default(false) @map("user_acknowledged")
+
+  // Relations
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, detectedAt(sort: Desc)])
+  @@map("patterns")
+}
+
+enum PatternType {
+  TEMPORAL
+  DIETARY
+  LIFESTYLE
+  CORRELATION
+}
+
+// ============================================
+// Social & Groups
+// ============================================
+
+model Group {
+  id                    String   @id @default(uuid())
+  name                  String
+  description           String?
+  privacyLevel          PrivacyLevel @map("privacy_level")
+  createdBy             String   @map("created_by")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  creator               User     @relation("GroupCreator", fields: [createdBy], references: [id])
+  members               GroupMember[]
+
+  @@map("groups")
+}
+
+enum PrivacyLevel {
+  PRIVATE
+  INVITE_ONLY
+  PUBLIC
+}
+
+model GroupMember {
+  groupId               String   @map("group_id")
+  userId                String   @map("user_id")
+  role                  GroupRole
+  joinedAt              DateTime @default(now()) @map("joined_at")
+
+  // Relations
+  group                 Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, userId])
+  @@map("group_members")
+}
+
+enum GroupRole {
+  ADMIN
+  MEMBER
+}
+
+// ============================================
+// Gamification
+// ============================================
+
+model Achievement {
+  id                    String   @id @default(uuid())
+  title                 String
+  description           String
+  icon                  String
+  category              AchievementCategory
+  requirementType       RequirementType @map("requirement_type")
+  requirementValue      Int      @map("requirement_value")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  // Relations
+  userAchievements      UserAchievement[]
+
+  @@map("achievements")
+}
+
+enum AchievementCategory {
+  CONSISTENCY
+  LOGGING
+  HEALTH
+  SOCIAL
+  MILESTONE
+}
+
+enum RequirementType {
+  STREAK
+  COUNT
+  TRIGGER_IDENTIFICATION
+  GROUP_JOIN
+  REPORT_GENERATION
+}
+
+model UserAchievement {
+  userId                String   @map("user_id")
+  achievementId         String   @map("achievement_id")
+  unlockedAt            DateTime @default(now()) @map("unlocked_at")
+
+  // Relations
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement           Achievement @relation(fields: [achievementId], references: [id])
+
+  @@id([userId, achievementId])
+  @@map("user_achievements")
+}
+
+// ============================================
+// Reports
+// ============================================
+
+model Report {
+  id                    String   @id @default(uuid())
+  userId                String   @map("user_id")
+  title                 String
+  dateRangeStart        DateTime @map("date_range_start") @db.Date
+  dateRangeEnd          DateTime @map("date_range_end") @db.Date
+  pdfUrl                String?  @map("pdf_url")
+  generatedAt           DateTime @default(now()) @map("generated_at")
+  expiresAt             DateTime @map("expires_at")
+
+  // Relations
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("reports")
+}
